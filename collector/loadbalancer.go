@@ -36,7 +36,7 @@ func NewLoadBalancerCollector(s System, client *govultr.Client, log logr.Logger)
 			nil,
 		),
 		Instances: prometheus.NewDesc(
-			prometheus.BuildFQName(s.Namespace, s.Subsystem, "instances"),
+			prometheus.BuildFQName(s.Namespace, subsystem, "instances"),
 			"Number of Load balancer instances",
 			[]string{
 				"label",
@@ -63,7 +63,9 @@ func (c *LoadBalancerCollector) Collect(ch chan<- prometheus.Metric) {
 		"meta", meta,
 	)
 
-	// Enumerate all of the loadbalancers
+	// Create a buffered channel for metrics to avoid blocking
+	metricsChan := make(chan prometheus.Metric, len(loadbalancers)*2)
+
 	var wg sync.WaitGroup
 	for _, loadbalancer := range loadbalancers {
 		wg.Add(1)
@@ -71,7 +73,7 @@ func (c *LoadBalancerCollector) Collect(ch chan<- prometheus.Metric) {
 			defer wg.Done()
 			log.Info("Details")
 
-			ch <- prometheus.MustNewConstMetric(
+			metricsChan <- prometheus.MustNewConstMetric(
 				c.Up,
 				prometheus.CounterValue,
 				func(status string) (result float64) {
@@ -86,7 +88,7 @@ func (c *LoadBalancerCollector) Collect(ch chan<- prometheus.Metric) {
 					lb.Status,
 				}...,
 			)
-			ch <- prometheus.MustNewConstMetric(
+			metricsChan <- prometheus.MustNewConstMetric(
 				c.Instances,
 				prometheus.CounterValue,
 				float64(len(lb.Instances)),
@@ -98,7 +100,17 @@ func (c *LoadBalancerCollector) Collect(ch chan<- prometheus.Metric) {
 			)
 		}(loadbalancer)
 	}
-	wg.Wait()
+
+	// Close metrics channel when all goroutines are done
+	go func() {
+		wg.Wait()
+		close(metricsChan)
+	}()
+
+	// Send all metrics to the Prometheus channel
+	for metric := range metricsChan {
+		ch <- metric
+	}
 }
 
 // Describe implements Prometheus' Collector interface and is used to Describe metrics
