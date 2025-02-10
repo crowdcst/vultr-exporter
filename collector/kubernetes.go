@@ -31,6 +31,7 @@ func NewKubernetesCollector(s System, client *govultr.Client, log logr.Logger) *
 			prometheus.BuildFQName(s.Namespace, subsystem, "cluster_up"),
 			"Kubernetes cluster",
 			[]string{
+				"cluster_id",
 				"label",
 				"region",
 				"version",
@@ -42,6 +43,7 @@ func NewKubernetesCollector(s System, client *govultr.Client, log logr.Logger) *
 			prometheus.BuildFQName(s.Namespace, subsystem, "node_pool"),
 			"Number of Node Pools",
 			[]string{
+				"cluster_id",
 				"label",
 				"region",
 				"version",
@@ -53,6 +55,7 @@ func NewKubernetesCollector(s System, client *govultr.Client, log logr.Logger) *
 			prometheus.BuildFQName(s.Namespace, subsystem, "node"),
 			"Number of Nodes",
 			[]string{
+				"cluster_id",
 				"label",
 				"plan",
 				"status",
@@ -98,6 +101,7 @@ func (c *KubernetesCollector) Collect(ch chan<- prometheus.Metric) {
 					return result
 				}(cluster.Status),
 				[]string{
+					cluster.ID,
 					cluster.Label,
 					cluster.Region,
 					cluster.Version,
@@ -109,6 +113,7 @@ func (c *KubernetesCollector) Collect(ch chan<- prometheus.Metric) {
 				prometheus.GaugeValue,
 				float64(len(cluster.NodePools)),
 				[]string{
+					cluster.ID,
 					cluster.Label,
 					cluster.Region,
 					cluster.Version,
@@ -125,6 +130,7 @@ func (c *KubernetesCollector) Collect(ch chan<- prometheus.Metric) {
 					prometheus.GaugeValue,
 					float64(nodepool.NodeQuantity),
 					[]string{
+						cluster.ID,
 						nodepool.Label,
 						nodepool.Plan,
 						nodepool.Status,
@@ -142,4 +148,5 @@ func (c *KubernetesCollector) Collect(ch chan<- prometheus.Metric) {
 func (c *KubernetesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.Up
 	ch <- c.NodePools
+	ch <- c.Nodes
 }
